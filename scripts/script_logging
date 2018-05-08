@@ -1,4 +1,20 @@
 #!/bin/bash
+#
+# Title: script_logging
+#
+# Description:
+#   Functions to help with logging messages from scripts, and handling verbose
+#   modes.
+#
+# Credits:  None
+#
+# Usage:
+#   Source this script and use the appropriate functions for your needs.
+#
+# Maintainer: dr.j.osborne@gmail.com
+#
+# License: MIT, see LICENSE file in repository root
+#
 
 # Define true and false
 TRUE=0

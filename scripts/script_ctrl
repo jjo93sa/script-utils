@@ -1,10 +1,26 @@
 #!/bin/bash
+#
+# Title: script_ctl
+#
+# Description:
+#   Functions to help with script control, including blocking script execution
+#   and recording last script execution times.
+#
+# Credits:  None
+#
+# Usage:
+#   Source this script and use the appropriate functions for your needs.
+#
+# Maintainer: dr.j.osborne@gmail.com
+#
+# License: MIT, see LICENSE file in repository root
+#
 
 # Source logging tools
 source /usr/local/bin/script_logging
 
 # Source pushover
-source /usr/local/bin/push_to_pushover.sh
+#source /usr/local/bin/push_to_pushover.sh
 
 # Define a file to record the last run time and the current status
 #+ Last run time is file timestamp. Last IP is in file content
@@ -59,10 +75,10 @@ function test_blocked()
    then
       log_message "$(basename $0) is blocked. $(cat $BLK_FILE)"
 
-      if test_verbose
-      then
-         pushover "$(basename $0) is blocked. $(cat $BLK_FILE)" "Script blocked"
-      fi
+#      if test_verbose
+#      then
+#         pushover "$(basename $0) is blocked. $(cat $BLK_FILE)" "Script blocked"
+#      fi
 
       return $TRUE
    else
