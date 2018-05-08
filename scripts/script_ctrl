@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# Source logging tools
+source /usr/local/bin/script_logging
+
+# Source pushover
+source /usr/local/bin/push_to_pushover.sh
+
+# Define a file to record the last run time and the current status
+#+ Last run time is file timestamp. Last IP is in file content
+RUN_FILE="$TMP_DIR/$(basename $0).run"
+
+# Define a file name to record that this script is blocked
+BLK_FILE="$TMP_DIR/$(basename $0).block"
+
+function update_run_file()
+{
+   if [ -n "$1" ]
+   then
+      echo "$(date -u "+%Y-%m-%d %H:%M:%S"): $1" > "$RUN_FILE"
+   fi
+
+   touch "$RUN_FILE"
+}
+
+function block_script()
+{
+   if [ -n "$1" ]
+   then
+      echo "Blocking script is $(basename $0)" > "$TMP_DIR/$1.block"
+      log_message "$(basename $0) blocking script $1"
+   fi
+}
+
+function release_script()
+{
+   if [ -e "$TMP_DIR/$1.block" ]
+   then
+      log_message "$(basename $0) releasing script $1"
+      rm "$TMP_DIR/$1.block"
+   fi
+}
+
+function release_all()
+{
+   for file in "$TMP_DIR/*.block"
+   do
+      if [ -e "$file" ]
+      then
+         log_message "$(basename $0) releasing script $file"
+         rm $TMP_DIR/$file
+      fi
+   done
+}
+
+function test_blocked()
+{
+   if [ -e "$BLK_FILE" ]
+   then
+      log_message "$(basename $0) is blocked. $(cat $BLK_FILE)"
+
+      if test_verbose
+      then
+         pushover "$(basename $0) is blocked. $(cat $BLK_FILE)" "Script blocked"
+      fi
+
+      return $TRUE
+   else
+      return $FALSE
+   fi
+}
+

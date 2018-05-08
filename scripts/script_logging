@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# Define true and false
+TRUE=0
+FALSE=1
+
+# Temporary directory for files, hidden
+TMP_DIR="$HOME/.net.poshboy/tmp"
+
+# Log directory for files, hidden
+LOG_DIR="$HOME/.net.poshboy/log"
+
+# Create the temporary directory if it doesn't already exist
+if [ ! -d $TMP_DIR ]
+then
+   mkdir -p $TMP_DIR
+fi
+
+# Create the log directory if it doesn't already exist
+if [ ! -d $LOG_DIR ]
+then
+   mkdir -p $LOG_DIR
+fi
+
+# Define a Log file for the calling scripts to use
+LOG_FILE="$LOG_DIR/$(basename $0).log"
+
+# Define a file to control verbose logging
+VRB_FILE="$TMP_DIR/$(basename $0).verbose"
+
+# Maximum lines in the log, number of lines to leave on purge,
+#+ maximum file count
+MAX_LINES=100000
+BUFFER_LINES=100
+MAX_COUNT=5
+
+
+#
+# Function to determine if script should operate in verbose mode
+#+ To activate verbose mode, put a file with the same name as the script, but
+#+ with a .verbose extension, in the temporary directory
+function test_verbose()
+{
+   if [ -e "$VRB_FILE" ]
+   then
+      return $TRUE
+   else
+      return $FALSE
+   fi
+}
+
+
+# Function to log messages to file with date-time stamp.
+#+ $1 - message: message to log
+#+ $2 - file: file to log message in (defaults to LOG_FILE)
+function log_message()
+{
+    # The date and time this script was called.
+    local DATE_TIME_NOW=$(date -u "+%Y-%m-%d %H:%M:%S")
+
+    TARGET_FILE=${2:-"$LOG_FILE"}
+
+    if [ -e "$TARGET_FILE" ]
+    then
+        echo "${DATE_TIME_NOW}: $1" >> "$TARGET_FILE"
+    else
+        echo "${DATE_TIME_NOW}: $1" > "$TARGET_FILE"
+    fi
+}
+
+function archive_log_file()
+{
+   mv $LOG_FILE $LOG_FILE.$(date -u "+%Y-%m-%d-%H%M%S")
+}
+
+
+function roll_log_file()
+{
+   # Archive the log file if it gets bigger than MAX_LINES
+   if [ -e "$LOG_FILE" ]
+   then
+      FILE_SIZE=$(wc -l $LOG_FILE | grep -Eo '[[:digit:]]+')
+
+      if [ $FILE_SIZE -gt $MAX_LINES ]
+      then
+         archive_log_file
+      fi
+   fi
+}
+
+function trim_log_file()
+{
+   # Limit the log file size
+   if [ -e "$LOG_FILE" ]
+   then
+      FILE_SIZE=$(wc -l $LOG_FILE | grep -Eo '[[:digit:]]+')
+
+      if [ $FILE_SIZE -gt $MAX_LINES ]
+      then
+         let "LAST_LINE = $FILE_SIZE - $BUFFER_LINES"
+         sed -i "" "2,$LAST_LINE d" $LOG_FILE
+      fi
+   fi
+}
+
+function clean_old_logs()
+{
+      # Limit the number of log files
+      FILE_CNT=$(find $LOG_DIR/* -maxdepth 1 -type f -name $(basename $LOG_FILE).* | wc -l)
+
+      if [ $FILE_CNT -gt $MAX_COUNT ]
+      then
+         (( FILE_COUNT = FILE_CNT - MAX_COUNT ))
+         rm  `ls -tr $LOG_FILE* | head -n $FILE_COUNT`
+      fi
+}
+
+#exit
+
