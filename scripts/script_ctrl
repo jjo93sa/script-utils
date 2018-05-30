@@ -3,8 +3,7 @@
 # Title: script_ctl
 #
 # Description:
-#   Functions to help with script control, including blocking script execution
-#   and recording last script execution times.
+#   Functions to help with script control, including blocking script execution.
 #
 # Credits:  None
 #
@@ -16,73 +15,57 @@
 # License: MIT, see LICENSE file in repository root
 #
 
-# Source logging tools
-source /usr/local/bin/script_logging
+TRUE=0
+FALSE=1
 
-# Source pushover
-#source /usr/local/bin/push_to_pushover.sh
+USER_REV_URL=${USER_REV_URL:-"net.poshboy"}
 
-# Define a file to record the last run time and the current status
-#+ Last run time is file timestamp. Last IP is in file content
-RUN_FILE="$TMP_DIR/$(basename $0).run"
+HIDDEN_LOGS=${HIDDEN_LOGS:-"."}
+
+# Log directory for files, hidden and based on reversed URL, script name
+TMP_DIR="$HOME/${HIDDEN_LOGS}${USER_REV_URL}"
+LOG_DIR="${TMP_DIR}/$(basename $0)"
+
+# Create the log directory if it doesn't already exist
+if [ ! -d $LOG_DIR ]
+then
+   mkdir -p $LOG_DIR
+fi
 
 # Define a file name to record that this script is blocked
-BLK_FILE="$TMP_DIR/$(basename $0).block"
+BLK_FILE="$LOG_DIR/block"
 
-function update_run_file()
-{
-   if [ -n "$1" ]
-   then
-      echo "$(date -u "+%Y-%m-%d %H:%M:%S"): $1" > "$RUN_FILE"
-   fi
 
-   touch "$RUN_FILE"
-}
-
-function block_script()
-{
-   if [ -n "$1" ]
-   then
-      echo "Blocking script is $(basename $0)" > "$TMP_DIR/$1.block"
-      log_message "$(basename $0) blocking script $1"
-   fi
-}
-
-function release_script()
-{
-   if [ -e "$TMP_DIR/$1.block" ]
-   then
-      log_message "$(basename $0) releasing script $1"
-      rm "$TMP_DIR/$1.block"
-   fi
-}
-
-function release_all()
-{
-   for file in "$TMP_DIR/*.block"
-   do
-      if [ -e "$file" ]
-      then
-         log_message "$(basename $0) releasing script $file"
-         rm $TMP_DIR/$file
-      fi
-   done
-}
-
+# Function to test if a script should be blocked from executing by the presence
+# of a file called "block". First tries checking the $BLK_FILE defined in this
+# file, then checks for a block file in the directory given as the 1st parameter
+# [$1] - optional directory for testing.
 function test_blocked()
 {
-   if [ -e "$BLK_FILE" ]
+   if [ -e "$BLK_FILE" ] || [ -e "$1/block" ]
    then
-      log_message "$(basename $0) is blocked. $(cat $BLK_FILE)"
-
-#      if test_verbose
-#      then
-#         pushover "$(basename $0) is blocked. $(cat $BLK_FILE)" "Script blocked"
-#      fi
-
       return $TRUE
    else
       return $FALSE
    fi
 }
 
+
+# Function to help blocking a script by creating a block file
+function block_script()
+{
+   if [ -n "$1" ]
+   then
+      echo "Blocking script is $(basename $2)" > "$TMP_DIR/$1/block"
+   fi
+}
+
+
+# Function to help release block script by removing the block file
+function release_script()
+{
+   if [ -e "$TMP_DIR/$1/block" ]
+   then
+      rm "$TMP_DIR/$1/block"
+   fi
+}

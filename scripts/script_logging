@@ -3,10 +3,12 @@
 # Title: script_logging
 #
 # Description:
-#   Functions to help with logging messages from scripts, and handling verbose
-#   modes.
+#   Functions to help with logging messages from scripts, handling verbose
+#   modes, and updating run files.
 #
-# Credits:  None
+# Credits:
+#   http://linuxadvices.blogspot.com/2013/05/logging-in-bash-nice-subroutine-to
+#   -reuse.html - For the write_log function
 #
 # Usage:
 #   Source this script and use the appropriate functions for your needs.
@@ -20,17 +22,12 @@
 TRUE=0
 FALSE=1
 
-# Temporary directory for files, hidden
-TMP_DIR="$HOME/.net.poshboy/tmp"
+USER_REV_URL=${USER_REV_URL:-"net.poshboy"}
 
-# Log directory for files, hidden
-LOG_DIR="$HOME/.net.poshboy/log"
+HIDDEN_LOGS=${HIDDEN_LOGS:-"."}
 
-# Create the temporary directory if it doesn't already exist
-if [ ! -d $TMP_DIR ]
-then
-   mkdir -p $TMP_DIR
-fi
+# Log directory for files, hidden and based on reversed URL, script name
+LOG_DIR="$HOME/${HIDDEN_LOGS}${USER_REV_URL}/$(basename $0)"
 
 # Create the log directory if it doesn't already exist
 if [ ! -d $LOG_DIR ]
@@ -39,19 +36,21 @@ then
 fi
 
 # Define a Log file for the calling scripts to use
-LOG_FILE="$LOG_DIR/$(basename $0).log"
+LOG_FILE="$LOG_DIR/log"
 
 # Define a file to control verbose logging
-VRB_FILE="$TMP_DIR/$(basename $0).verbose"
+VRB_FILE="$LOG_DIR/verbose"
+
+# Run file to record last script execution details
+RUN_FILE="$LOG_DIR/run"
 
 # Maximum lines in the log, number of lines to leave on purge,
 #+ maximum file count
-MAX_LINES=100000
+MAX_FILE_LINES=100000
 BUFFER_LINES=100
-MAX_COUNT=5
+MAX_FILE_COUNT=5
 
 
-#
 # Function to determine if script should operate in verbose mode
 #+ To activate verbose mode, put a file with the same name as the script, but
 #+ with a .verbose extension, in the temporary directory
@@ -59,74 +58,99 @@ function test_verbose()
 {
    if [ -e "$VRB_FILE" ]
    then
+      VECHO=echo
       return $TRUE
    else
+      VECHO=:
       return $FALSE
    fi
 }
 
 
-# Function to log messages to file with date-time stamp.
-#+ $1 - message: message to log
-#+ $2 - file: file to log message in (defaults to LOG_FILE)
-function log_message()
+# Function to write message to log file
+# Can either be used with a pipe: echo "message" | write_log
+# or with a parameter write_log "message"
+# Log file name is appended with UTC date
+function write_log()
 {
-    # The date and time this script was called.
-    local DATE_TIME_NOW=$(date -u "+%Y-%m-%d %H:%M:%S")
+    TEXT=${1:-$(</dev/stdin)}
 
-    TARGET_FILE=${2:-"$LOG_FILE"}
+    LOGTIME=`date -u "+%Y-%m-%d %H:%M:%S"`
 
-    if [ -e "$TARGET_FILE" ]
+    # If log file is not defined, just echo the output
+    if [ "$LOG_FILE" == "" ]
     then
-        echo "${DATE_TIME_NOW}: $1" >> "$TARGET_FILE"
+        echo $LOGTIME": $TEXT"
     else
-        echo "${DATE_TIME_NOW}: $1" > "$TARGET_FILE"
+        LOG=$LOG_FILE.`date -u "+%Y%m%d"`
+        touch $LOG
+        if [ ! -f $LOG ]
+        then
+            echo "ERROR!! Cannot create log file $LOG. Exiting."
+            exit 1
+        fi
+        echo $LOGTIME": $TEXT" | tee -a $LOG
     fi
 }
 
-function archive_log_file()
+
+# Experimental: use write_log to record message in locally defined log file
+# Function to log messages to file with date-time stamp.
+#+ $1 - message: message to log
+#+ $2 - file: file to log message in
+function log_message()
 {
-   mv $LOG_FILE $LOG_FILE.$(date -u "+%Y-%m-%d-%H%M%S")
+    local LOG=$2
+
+    echo "$1" | write_log
 }
 
 
-function roll_log_file()
+# Function to update the run file with a message, if no message is passed,
+# update the file timestamp only
+# $1 - message for run file
+function update_run()
 {
-   # Archive the log file if it gets bigger than MAX_LINES
-   if [ -e "$LOG_FILE" ]
-   then
-      FILE_SIZE=$(wc -l $LOG_FILE | grep -Eo '[[:digit:]]+')
-
-      if [ $FILE_SIZE -gt $MAX_LINES ]
-      then
-         archive_log_file
-      fi
-   fi
+    if [ -n "$1" ]
+    then
+        echo "$(date -u "+%Y-%m-%d %H:%M:%S"): $1" > "$RUN_FILE"
+    else
+        touch "$RUN_FILE"
+    fi
 }
 
+
+# Function to limit the current log file size
+# Attempts to get the number of lines from current log file, and if this value
+# exceeds a threshold, edit the log in place to reduce the line count. Leaves
+# first line and $BUFFER_LINES in place for reference purposes.
 function trim_log_file()
 {
-   # Limit the log file size
-   if [ -e "$LOG_FILE" ]
-   then
-      FILE_SIZE=$(wc -l $LOG_FILE | grep -Eo '[[:digit:]]+')
+    LOG=$LOG_FILE.`date -u "+%Y%m%d"`
+    if [ -e "$LOG" ]
+    then
+      FILE_SIZE=$(wc -l $LOG | grep -Eo '[[:digit:]]+')
 
-      if [ $FILE_SIZE -gt $MAX_LINES ]
+      if [ $FILE_SIZE -gt $MAX_FILE_LINES ]
       then
          let "LAST_LINE = $FILE_SIZE - $BUFFER_LINES"
-         sed -i "" "2,$LAST_LINE d" $LOG_FILE
+         sed -i "" "2,$LAST_LINE d" $LOG
       fi
-   fi
+    fi
 }
 
+
+# Function to limit the number of log files
+# Attempts to count the number of log files, and if this value exceeds a
+# threshold, delete the oldest files.
 function clean_old_logs()
 {
       # Limit the number of log files
       FILE_CNT=$(find $LOG_DIR/* -maxdepth 1 -type f -name $(basename $LOG_FILE).* | wc -l)
 
-      if [ $FILE_CNT -gt $MAX_COUNT ]
+      if [ $FILE_CNT -gt $MAX_FILE_COUNT ]
       then
-         (( FILE_COUNT = FILE_CNT - MAX_COUNT ))
+         (( FILE_COUNT = FILE_CNT - MAX_FILE_COUNT ))
          rm  `ls -tr $LOG_FILE* | head -n $FILE_COUNT`
       fi
 }
