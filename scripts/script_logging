@@ -67,66 +67,14 @@ function test_verbose()
 }
 
 
-# Function to write message to log file
-# Can either be used with a pipe: echo "message" | write_log
-# or with a parameter write_log "message"
-# Log file name is appended with UTC date
-function write_log()
-{
-    TEXT=${1:-$(</dev/stdin)}
-
-    LOGTIME=`date -u "+%Y-%m-%d %H:%M:%S"`
-
-    # If log file is not defined, just echo the output
-    if [ "$LOG_FILE" == "" ]
-    then
-        echo $LOGTIME": $TEXT"
-    else
-        LOG=$LOG_FILE.`date -u "+%Y%m%d"`
-        touch $LOG
-        if [ ! -f $LOG ]
-        then
-            echo "ERROR!! Cannot create log file $LOG. Exiting."
-            exit 1
-        fi
-        echo $LOGTIME": $TEXT" | tee -a $LOG
-    fi
-}
-
-
-# Experimental: use write_log to record message in locally defined log file
-# Function to log messages to file with date-time stamp.
-#+ $1 - message: message to log
-#+ $2 - file: file to log message in
-function log_message()
-{
-    local LOG=$2
-
-    echo "$1" | write_log
-}
-
-
-# Function to update the run file with a message, if no message is passed,
-# update the file timestamp only
-# $1 - message for run file
-function update_run()
-{
-    if [ -n "$1" ]
-    then
-        echo "$(date -u "+%Y-%m-%d %H:%M:%S"): $1" > "$RUN_FILE"
-    else
-        touch "$RUN_FILE"
-    fi
-}
-
-
 # Function to limit the current log file size
 # Attempts to get the number of lines from current log file, and if this value
 # exceeds a threshold, edit the log in place to reduce the line count. Leaves
 # first line and $BUFFER_LINES in place for reference purposes.
+# $1 - file to trim otherwise trim today's $LOG_FILE
 function trim_log_file()
 {
-    LOG=$LOG_FILE.`date -u "+%Y%m%d"`
+    LOG={$1:-$LOG_FILE.`date -u "+%Y%m%d"`}
     if [ -e "$LOG" ]
     then
       FILE_SIZE=$(wc -l $LOG | grep -Eo '[[:digit:]]+')
@@ -155,5 +103,60 @@ function clean_old_logs()
       fi
 }
 
-#exit
 
+# Function to write message to log file
+# Can either be used with a pipe: echo "message" | write_log
+# or with a parameter write_log "message"
+# Log file name is appended with UTC date
+function write_log()
+{
+    TEXT=${1:-$(</dev/stdin)}
+
+    LOGTIME=`date -u "+%Y-%m-%d %H:%M:%S"`
+
+    # If log file is not defined, just echo the output
+    if [ "$LOG_FILE" == "" ]
+    then
+        echo $LOGTIME": $TEXT"
+    else
+        LOG=$LOG_FILE.`date -u "+%Y%m%d"`
+        touch $LOG
+        if [ ! -f $LOG ]
+        then
+            echo "ERROR!! Cannot create log file $LOG. Exiting."
+            exit 1
+        fi
+        echo $LOGTIME": $TEXT" | tee -a $LOG
+    fi
+
+    # trim the log file if it gets too long
+    trim_log_file
+}
+
+
+# Experimental: use write_log to record message in locally defined log file
+# Function to log messages to file with date-time stamp.
+#+ $1 - message: message to log
+#+ $2 - file: file to log message in
+function log_message()
+{
+    local LOG=$2
+
+    echo "$1" | write_log
+}
+
+
+# Function to update the run file with a message, if no message is passed,
+# update the file timestamp only
+# $1 - message for run file
+function update_run()
+{
+    if [ -n "$1" ]
+    then
+        echo "$(date -u "+%Y-%m-%d %H:%M:%S"): $1" > "$RUN_FILE"
+    else
+        touch "$RUN_FILE"
+    fi
+}
+
+#end

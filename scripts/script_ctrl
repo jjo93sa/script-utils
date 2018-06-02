@@ -42,7 +42,7 @@ BLK_FILE="$LOG_DIR/block"
 # [$1] - optional directory for testing.
 function test_blocked()
 {
-   if [ -e "$BLK_FILE" ] || [ -e "$1/block" ]
+   if [ -e "$BLK_FILE" ] || [ -e "$1" ]
    then
       return $TRUE
    else
@@ -54,18 +54,27 @@ function test_blocked()
 # Function to help blocking a script by creating a block file
 function block_script()
 {
-   if [ -n "$1" ]
-   then
-      echo "Blocking script is $(basename $2)" > "$TMP_DIR/$1/block"
-   fi
+    local BLK_TIME=`date -u "+%Y-%m-%d %H:%M:%S"`
+
+    local BLKING_FILE=${1:-"$BLK_FILE"}
+
+    touch $BLKING_FILE
+
+    echo "$BLK_TIME: Blocked by call from script: $(basename $2); PID: $$" >> "$BLKING_FILE"
 }
 
 
-# Function to help release block script by removing the block file
+# Function to help release blocked script by removing the block file
 function release_script()
 {
-   if [ -e "$TMP_DIR/$1/block" ]
-   then
-      rm "$TMP_DIR/$1/block"
-   fi
+    local BLKING_FILE=${1:-"$BLK_FILE"}
+
+    if [ -e "$BLKING_FILE" ]
+    then
+        rm -f "$BLKING_FILE" || echo "Unable to delete $BLKING_FILE"
+    else
+        echo "Block file $BLKING_FILE does not exist"
+    fi
 }
+
+
